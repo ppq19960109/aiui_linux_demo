@@ -1,0 +1,3 @@
+/home/ppq/aiui/samples/build_x64/CMakeFiles/rebuild_cache.dir
+/home/ppq/aiui/samples/build_x64/CMakeFiles/aiui_sample.dir
+/home/ppq/aiui/samples/build_x64/CMakeFiles/edit_cache.dir
