@@ -13,10 +13,45 @@
 #include <fstream>
 #include <iostream>
 #include <thread>
-
+#include "alsa.h"
 using namespace std;
 using namespace VA;
 using namespace aiui_v2;
+/* wav音频头部格式 */
+typedef struct _wave_pcm_hdr
+{
+    char riff[4]; // = "RIFF"
+    int size_8;   // = FileSize - 8
+    char wave[4]; // = "WAVE"
+    char fmt[4];  // = "fmt "
+    int fmt_size; // = 下一个结构体的大小 : 16
+
+    short int format_tag;      // = PCM : 1
+    short int channels;        // = 通道数 : 1
+    int samples_per_sec;       // = 采样率 : 8000 | 6000 | 11025 | 16000
+    int avg_bytes_per_sec;     // = 每秒字节数 : samples_per_sec * bits_per_sample / 8
+    short int block_align;     // = 每采样点字节数 : wBitsPerSample / 8
+    short int bits_per_sample; // = 量化比特数: 8 | 16
+
+    char data[4];  // = "data";
+    int data_size; // = 纯数据长度 : FileSize - 44
+} wave_pcm_hdr;
+
+wave_pcm_hdr default_wav_hdr =
+    {
+        {'R', 'I', 'F', 'F'},
+        0,
+        {'W', 'A', 'V', 'E'},
+        {'f', 'm', 't', ' '},
+        16,
+        1,
+        1,
+        16000,
+        32000,
+        2,
+        16,
+        {'d', 'a', 't', 'a'},
+        0};
 
 class MyListener : public IAIUIListener
 {
@@ -36,6 +71,7 @@ public:
 private:
     void __onEvent(const IAIUIEvent &event)
     {
+        printf("__onEvent:%d\n", event.getEventType());
         switch (event.getEventType())
         {
         //SDK 状态回调
@@ -105,6 +141,32 @@ private:
             }
         }
         break;
+        case AIUIConstant::EVENT_TTS:
+        {
+            cout << "EVENT_TTS" << endl;
+            switch (event.getArg1())
+            {
+            case AIUIConstant::TTS_SPEAK_BEGIN:
+                cout << "开始播放" << endl;
+                break;
+            case AIUIConstant::TTS_SPEAK_PROGRESS:
+                // cout << "缓冲进度为" + "mTtsBufferProgress" + ", 播放进度为" + event.getData().getInt("percent") << endl; // 播放进度
+
+                break;
+            case AIUIConstant::TTS_SPEAK_PAUSED:
+                cout << "暂停播放" << endl;
+                break;
+
+            case AIUIConstant::TTS_SPEAK_RESUMED:
+                cout << "恢复播放" << endl;
+                break;
+
+            case AIUIConstant::TTS_SPEAK_COMPLETED:
+                cout << "播放完成" << endl;
+                break;
+            }
+        }
+        break;
 
             //最重要的结果事件回调
         case AIUIConstant::EVENT_RESULT:
@@ -118,6 +180,7 @@ private:
                      << event.getInfo() << endl;
                 break;
             }
+            // cout << bizParamJson.toStyledString() << endl;
             Json::Value &data = (bizParamJson["data"])[0];
             Json::Value &params = data["params"];
             Json::Value &content = (data["content"])[0];
@@ -142,11 +205,76 @@ private:
 
                 if (sub == "tts")
                 {
+                    std::cout << "tts result: " << dataLen << std::endl;
                     Json::Value &&isUrl = content.get("url", empty);
 
                     if (isUrl.asString() == "1")
                     {
                         std::cout << string(buffer, dataLen) << std::endl;
+                    }
+                    else
+                    {
+                        Json::Value dts = content.get("dts", empty);
+                        if (dts.empty())
+                        {
+                            cout << "dts is empty" << endl;
+                            break;
+                        }
+                        std::cout << "tts dts: " << dts.asInt() << std::endl;
+#if 0
+                        static FILE *fp = NULL;
+
+                        if (dts.asInt() == 0)
+                        {
+                            default_wav_hdr.size_8 = 0;
+                            default_wav_hdr.data_size = 0;
+
+                            fp = fopen("aiui_tts.wav", "wb");
+                            if (NULL == fp)
+                            {
+                                printf("open %s error.\n", "aiui_tts.wav");
+                                break;
+                            }
+                            fwrite(&default_wav_hdr, sizeof(default_wav_hdr), 1, fp);
+                            fwrite(buffer, dataLen, 1, fp);
+                            default_wav_hdr.data_size += dataLen; //计算data_size大小
+                        }
+                        else if (dts.asInt() == 2)
+                        {
+                            /* 修正wav文件头数据的大小 */
+                            default_wav_hdr.size_8 += default_wav_hdr.data_size + (sizeof(default_wav_hdr) - 8);
+                            /* 将修正过的数据写回文件头部,音频文件为wav格式 */
+                            fseek(fp, 4, 0);
+                            fwrite(&default_wav_hdr.size_8, sizeof(default_wav_hdr.size_8), 1, fp);       //写入size_8的值
+                            fseek(fp, 40, 0);                                                             //将文件指针偏移到存储data_size值的位置
+                            fwrite(&default_wav_hdr.data_size, sizeof(default_wav_hdr.data_size), 1, fp); //写入data_size的值
+                            fclose(fp);
+                            fp = NULL;
+                        }
+                        else
+                        {
+                            fwrite(buffer, dataLen, 1, fp);
+                            default_wav_hdr.data_size += dataLen; //计算data_size大小
+                        }
+#else
+                        if (dts.asInt() == 0)
+                        {
+                            // audio_play_init(16000, 1, 16);
+                            audio_play_start();
+                            audio_play((char *)buffer, dataLen, 0);
+                        }
+                        else if (dts.asInt() == 2)
+                        {
+                            audio_play((char *)buffer, dataLen, 1);
+                            audio_play_end();
+                            // audio_play_deinit();
+                        }
+                        else
+                        {
+                            audio_play((char *)buffer, dataLen, 0);
+                        }
+
+#endif
                     }
                 }
                 else
@@ -469,7 +597,7 @@ void testTTs()
         AIUIBuffer textData = aiui_create_buffer_from_data(text.c_str(), text.length());
 
         IAIUIMessage *ttsMsg = IAIUIMessage::create(
-            AIUIConstant::CMD_TTS, 1, 0, "text_encoding=utf-8,vcn=x2_xiaojuan", textData);
+            AIUIConstant::CMD_TTS, 1, 0, "text_encoding=utf-8,vcn=x2_xiaojuan,speed=30", textData);
 
         agent->sendMessage(ttsMsg);
         ttsMsg->destroy();
@@ -684,6 +812,10 @@ int main()
     AIUISetting::setSystemInfo(AIUI_KEY_SERIAL_NUM, mac);
 
     string cmd;
+    audio_play_init(16000, 1, 16);
+    createAgent();
+    start();
+    wakeup();
     while (true)
     {
         cin >> cmd;
@@ -757,7 +889,9 @@ int main()
         }
         else if (cmd == "q")
         {
+            audio_play_deinit();
             destroy();
+
             break;
         }
         else if (cmd == "h")

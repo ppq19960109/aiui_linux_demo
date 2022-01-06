@@ -42,6 +42,7 @@ add_executable(${PROJECT_NAME}
                     src/demo.cpp
                     src/speech_recognizer.c
                     src/linuxrec.c
+                    src/alsa.c
 
                     src/jsoncpp/json_reader.cpp
                     src/jsoncpp/json_value.cpp
