@@ -499,7 +499,7 @@ void writeAudio()
 {
     // if (NULL != agent) {
     //     IAIUIMessage* stopMsg =
-    //         IAIUIMessage::create(AIUIConstant::CMD_START_RECORD, 0, 0, "data_type=audio");
+    //         IAIUIMessage::create(AIUIConstant::CMD_START_RECORD, 0, 0, "data_type=audio,sample_rate=16000");
     //     agent->sendMessage(stopMsg);
     //     stopMsg->destroy();
     // }
@@ -815,7 +815,9 @@ int main()
     audio_play_init(16000, 1, 16);
     createAgent();
     start();
-    wakeup();
+    // wakeup();
+    writeAudio();
+    
     while (true)
     {
         cin >> cmd;
