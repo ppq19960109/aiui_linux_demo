@@ -131,7 +131,7 @@ int audio_play_init(const int rate, const int channels, const int bits_per_sampl
                                   channels,
                                   rate,
                                   0,
-                                  10 * 1000000)) < 0)
+                                  5 * 1000000)) < 0)
     {
         printf("Playback open error: %s\n", snd_strerror(err));
         exit(1);
@@ -298,7 +298,7 @@ int audio_play(char *data, int len, const char last)
             fprintf(stderr, "short write, write %d frames\n", rc);
         }
         // snd_pcm_delay(handle,1000);
-        usleep(10*1000);
+        usleep(5*1000);
     }
     return 0;
 }

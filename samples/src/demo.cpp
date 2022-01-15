@@ -71,7 +71,7 @@ public:
 private:
     void __onEvent(const IAIUIEvent &event)
     {
-        printf("__onEvent:%d\n", event.getEventType());
+        // printf("__onEvent:%d\n", event.getEventType());
         switch (event.getEventType())
         {
         //SDK 状态回调
@@ -273,7 +273,6 @@ private:
                         {
                             audio_play((char *)buffer, dataLen, 0);
                         }
-
 #endif
                     }
                 }
